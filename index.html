@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Dolmuşçu v3 — Garaj ve Yükseltmeler</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#15271d;color:#fff;overflow:hidden;touch-action:manipulation}
+#game{display:block;width:100vw;height:100dvh;touch-action:none}
+.hud{position:fixed;top:9px;left:9px;right:9px;display:flex;gap:6px;justify-content:space-between;pointer-events:none;flex-wrap:wrap}
+.pill{background:#10251de8;border:1px solid #ffffff40;border-radius:12px;padding:7px 10px;font-weight:800;font-size:13px;box-shadow:0 3px 10px #0003}
+#message{position:fixed;top:64px;left:50%;transform:translateX(-50%);background:#10251de8;border:1px solid #ffffff40;border-radius:12px;padding:9px 12px;text-align:center;font-weight:700;font-size:13px;max-width:92vw;min-width:220px;pointer-events:none}
+.controls{position:fixed;bottom:16px;left:0;right:0;display:flex;justify-content:space-between;padding:0 15px;align-items:end;gap:12px}
+button{border:2px solid #ffffff70;border-radius:16px;background:#10251de8;color:#fff;font-size:25px;font-weight:900;min-width:66px;height:64px;box-shadow:0 4px 0 #091710;touch-action:none}
+button:active{transform:translateY(2px);box-shadow:0 2px 0 #091710}
+#stop{min-width:100px;font-size:14px;height:56px;background:#f3b52a;color:#172016;border-color:#fff}
+#garageBtn{position:fixed;top:105px;right:10px;width:auto;min-width:0;height:42px;padding:0 12px;font-size:13px;background:#163c2a}
+#overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#091710c9;padding:16px;overflow:auto}
+.panel{width:min(460px,100%);max-height:94dvh;overflow:auto;background:#f9f3df;color:#1b2a1f;border-radius:22px;padding:22px;text-align:center;box-shadow:0 16px 50px #0007}
+.panel h1{margin:0 0 8px;font-size:29px}.panel p{line-height:1.4;margin:8px 0}
+.primary{width:100%;height:52px;background:#16834a;color:white;border:0;box-shadow:0 4px 0 #0c5530;font-size:17px;margin-top:10px}
+.secondary{width:100%;height:44px;background:#e4e9d9;color:#1b2a1f;border:1px solid #b8c2ac;box-shadow:none;font-size:14px;margin-top:7px}
+.shoprow{display:flex;align-items:center;gap:10px;background:#fffdf5;border:1px solid #d6ddca;border-radius:13px;padding:10px;margin:9px 0;text-align:left}
+.shoprow .desc{flex:1;font-size:13px;line-height:1.3}
+.shoprow strong{display:block;font-size:15px}
+.shoprow button{min-width:86px;width:86px;height:42px;font-size:13px;background:#16834a;color:#fff;border:0;box-shadow:0 3px 0 #0c5530}
+.shoprow button:disabled{background:#a6b0a1;box-shadow:none;color:#263326}
+.small{font-size:11px;opacity:.75}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div class="hud">
+ <div class="pill">💵 <span id="money">0</span> ₺</div>
+ <div class="pill">👥 <span id="passengers">0</span>/<span id="capacity">4</span></div>
+ <div class="pill">❤️ <span id="health">3</span></div>
+ <div class="pill">🚐 <span id="vanname">Minibüs</span></div>
+</div>
+<div id="message">Durakta yolcu al, sonra ücret kazan!</div>
+<button id="garageBtn">🔧 GARAJ</button>
+<div class="controls">
+ <button id="left" aria-label="Sola">◀</button>
+ <button id="stop">🛑 DURAK</button>
+ <button id="right" aria-label="Sağa">▶</button>
+</div>
+<div id="overlay">
+ <div class="panel" id="mainPanel">
+  <h1>🚐 Dolmuşçu</h1>
+  <p><b>Yeni sürüm: Garaj ve araç geliştirme!</b></p>
+  <p>Yolcuları duraktan al. Birkaç saniye sonra inmek için işaret verirler; <b>DURAK</b> düğmesine basıp onları indir ve ücretlerini al.</p>
+  <p>◀ ▶ ile şerit değiştir. Trafiğe çarpmamaya dikkat et. Kazandığın parayla garajdan daha iyi dolmuş al veya kapasiteni yükselt.</p>
+  <button class="primary" id="start">YOLA ÇIK!</button>
+  <button class="secondary" id="openGarage">🔧 Garaja Bak</button>
+  <p class="small">Telefon uyumlu mini oyun • İnternet gerekmez</p>
+ </div>
+ <div class="panel hidden" id="garagePanel">
+  <h1>🔧 Dolmuş Garajı</h1>
+  <p>Bakiyen: <b><span id="garageMoney">0</span> ₺</b></p>
+  <div id="shopItems"></div>
+  <button class="primary" id="backGarage">Oyuna dön</button>
+  <p class="small">Satın almalar bu oyun oturumu boyunca geçerlidir.</p>
+ </div>
+ <div class="panel hidden" id="endPanel">
+  <h1>🚧 Sefer Bitti!</h1>
+  <p id="endStats"></p>
+  <button class="primary" id="restart">TEKRAR OYNA</button>
+  <button class="secondary" id="endGarage">🔧 Garaja git</button>
+ </div>
+</div>
+<script>
+(() => {
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+const $=id=>document.getElementById(id);
+let W=0,H=0,dpr=1,running=false,last=0,roadOffset=0,spawnTimer=0,stopCooldown=0,invincible=0,stopPrompt=0;
+let money=0,passengers=0,health=3,served=0,lane=1,playerX=0,tripTime=0;
+let capacity=4,vanLevel=0,engineLevel=0;
+const vans=[
+ {name:'Sarı Minibüs',price:0,color:'#f2c12e',speed:210,capacity:4},
+ {name:'Mavi Dolmuş',price:250,color:'#4b8fe8',speed:225,capacity:5},
+ {name:'VIP Minibüs',price:600,color:'#8b63c7',speed:240,capacity:6}
+];
+const traffic=[],stops=[],riders=[];
+const laneX=i=>W*(.34+i*.16);
+function resize(){dpr=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;canvas.width=W*dpr;canvas.height=H*dpr;canvas.style.width=W+'px';canvas.style.height=H+'px';ctx.setTransform(dpr,0,0,dpr,0,0);if(!playerX)playerX=laneX(1);}
+addEventListener('resize',resize);resize();
+function rounded(x,y,w,h,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill();}
+function vanColor(){return vans[vanLevel].color}
+function drawVan(x,y,w,h){ctx.save();ctx.translate(x,y);ctx.fillStyle='#0003';ctx.beginPath();ctx.ellipse(0,h*.42,w*.7,h*.16,0,0,Math.PI*2);ctx.fill();
+ rounded(-w/2,-h/2,w,h,9,vanColor());rounded(-w*.42,-h*.42,w*.84,h*.75,7,vanLevel===0?'#168e9b':vanLevel===1?'#184b82':'#553c83');
+ rounded(-w*.34,-h*.35,w*.68,h*.25,4,'#bfeef1');ctx.fillStyle='#eafcff';ctx.fillRect(-w*.30,-h*.30,w*.22,h*.14);ctx.fillRect(w*.08,-h*.30,w*.22,h*.14);
+ ctx.fillStyle='#14383b';ctx.fillRect(-w*.30,h*.05,w*.60,h*.18);ctx.fillStyle='#fff4c2';ctx.fillRect(-w*.39,h*.30,w*.18,h*.07);ctx.fillRect(w*.21,h*.30,w*.18,h*.07);
+ ctx.fillStyle='#26302e';ctx.fillRect(-w*.56,-h*.28,w*.12,h*.22);ctx.fillRect(w*.44,-h*.28,w*.12,h*.22);ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(8,w*.17)}px system-ui`;ctx.textAlign='center';ctx.fillText('DOLMUŞ',0,h*.01);ctx.restore();}
+function drawCar(o){ctx.save();ctx.translate(o.x,o.y);rounded(-18,-28,36,56,7,o.color);rounded(-13,-20,26,15,4,'#c7f1f7');rounded(-13,3,26,12,3,'#354b4d');ctx.fillStyle='#fff4bf';ctx.fillRect(-14,-25,7,4);ctx.fillRect(7,-25,7,4);ctx.restore();}
+function drawStop(s){ctx.save();ctx.translate(s.x,s.y);ctx.fillStyle='#4b3824';ctx.fillRect(-2,0,4,45);rounded(-23,-25,46,27,7,'#f7c536');ctx.fillStyle='#183624';ctx.font='bold 11px system-ui';ctx.textAlign='center';ctx.fillText('DURAK',0,-8);ctx.fillStyle='#fff';for(let i=0;i<2;i++){ctx.beginPath();ctx.arc(-12+i*24,20,6,0,Math.PI*2);ctx.fill();}ctx.restore();}
+function road(){ctx.fillStyle='#75a95a';ctx.fillRect(0,0,W,H);for(let i=0;i<10;i++){let y=((i*83+roadOffset*.4)%(H+30))-15;ctx.fillStyle=i%2?'#659b4f':'#83b764';ctx.fillRect(0,y,W*.2,3);ctx.fillRect(W*.8,y,W*.2,3);}
+ let rx=W*.2,rw=W*.6;ctx.fillStyle='#686d70';ctx.fillRect(rx,0,rw,H);ctx.fillStyle='#d7d4b8';ctx.fillRect(rx+5,0,4,H);ctx.fillRect(rx+rw-9,0,4,H);ctx.fillStyle='#f7edbd';for(let y=-60+(roadOffset%90);y<H;y+=90){ctx.fillRect(W*.4-2,y,4,45);ctx.fillRect(W*.6-2,y,4,45);}ctx.fillStyle='#d8c8a1';ctx.fillRect(rx-10,0,10,H);ctx.fillRect(rx+rw,0,10,H);}
+function updateHud(){$('money').textContent=money;$('passengers').textContent=passengers;$('capacity').textContent=capacity;$('health').textContent=health;$('vanname').textContent=vans[vanLevel].name;$('garageMoney').textContent=money;}
+function render(){road();stops.forEach(drawStop);traffic.forEach(drawCar);drawVan(playerX,H*.76,W*.105,H*.105);
+ if(invincible>0&&Math.floor(invincible*12)%2===0){ctx.fillStyle='#ffffff55';ctx.fillRect(playerX-30,H*.76-35,60,70);}
+ // Small passenger exit notification
+ if(stopPrompt>0){ctx.fillStyle='#fff';ctx.font='bold 13px system-ui';ctx.textAlign='center';ctx.fillText('YOLCU İNMEK İSTİYOR!',W/2,H*.62);}
+}
+function frame(t){if(!running)return;const dt=Math.min((t-last)/1000||0,.04);last=t;update(dt);render();if(running)requestAnimationFrame(frame);}
+function update(dt){tripTime+=dt;roadOffset+= (vans[vanLevel].speed+engineLevel*12)*dt;spawnTimer+=dt;stopCooldown-=dt;invincible-=dt;stopPrompt-=dt;
+ if(spawnTimer>1.15){spawnTimer=0;let l=Math.floor(Math.random()*3);traffic.push({x:laneX(l),y:-60,color:['#dc594a','#e9ecef','#4c70bd','#7dcb69'][Math.floor(Math.random()*4)]});}
+ if(Math.random()<dt*.32&&stops.length<1)stops.push({x:W*.24,y:-40});
+ traffic.forEach(o=>o.y+=(vans[vanLevel].speed+engineLevel*12)*dt*.78);stops.forEach(s=>s.y+=(vans[vanLevel].speed+engineLevel*12)*dt);
+ // Riders are passenger timers: when ready, they request the next stop.
+ riders.forEach(r=>{r.timer-=dt;if(r.timer<=0)r.ready=true;});
+ while(traffic.length&&traffic[0].y>H+70)traffic.shift();while(stops.length&&stops[0].y>H+60)stops.shift();
+ let target=laneX(lane);playerX+=(target-playerX)*Math.min(1,dt*8);
+ for(let i=traffic.length-1;i>=0;i--){let o=traffic[i];if(Math.abs(o.x-playerX)<31&&Math.abs(o.y-H*.76)<49&&invincible<=0){health--;invincible=1.5;traffic.splice(i,1);$('message').textContent='💥 Kaza! Dikkatli sür!';updateHud();if(health<=0){endGame();return;}}}
+ const waiting=riders.filter(r=>r.ready).length;
+ if(waiting>0){$('message').textContent=`🧍 ${waiting} yolcu inecek! DURAK düğmesine bas.`;}
+ else if(stops.length&&Math.abs(stops[0].y-H*.76)<42&&stopCooldown<=0){$('message').textContent='Durak yakında! DURAK düğmesine bas.';}
+ else if(passengers===0&&stops.length===0){$('message').textContent='Duraktan yolcu al, sonra ücret kazan!';}
+}
+function takeStop(){if(!running)return;
+ let gotOff=0;for(let i=riders.length-1;i>=0;i--){if(riders[i].ready){riders.splice(i,1);gotOff++;}}
+ if(gotOff>0){let fare=gotOff*(35+engineLevel*5);money+=fare;served+=gotOff;passengers=Math.max(0,passengers-gotOff);$('message').textContent=`💵 ${gotOff} yolcu indi, ${fare} ₺ kazandın!`;updateHud();stopCooldown=1.3;return;}
+ if(stops.length&&Math.abs(stops[0].y-H*.76)<100){stops.shift();let room=capacity-passengers;let got=room>0?Math.min(room,1+Math.floor(Math.random()*3)):0;if(got>0){passengers+=got;for(let i=0;i<got;i++)riders.push({timer:5+Math.random()*8,ready:false});$('message').textContent=`🧍 ${got} yolcu bindi! Biraz sonra inecekler.`;}else{$('message').textContent='Dolmuş dolu! Önce yolcuları indir.';}updateHud();stopCooldown=1.3;}
+ else if(passengers>0){$('message').textContent='Yolcular henüz inmek istemiyor. Biraz daha sür!';}
+ else $('message').textContent='Durak görünce DURAK düğmesine bas!';}
+function makeShop(){const root=$('shopItems');root.innerHTML='';
+ const items=[
+  {title:'🚐 Mavi Dolmuş',desc:'Daha hızlı ve 5 yolcu kapasitesi.',price:250,owned:vanLevel>=1,action:()=>{vanLevel=1;capacity=Math.max(capacity,5)}},
+  {title:'🚐 VIP Minibüs',desc:'En hızlı araç ve 6 yolcu kapasitesi.',price:600,owned:vanLevel>=2,action:()=>{vanLevel=2;capacity=Math.max(capacity,6)}},
+  {title:'💺 Ek koltuk',desc:`Yolcu kapasitesini artırır. Şu an: ${capacity}`,price:180,owned:capacity>=8,action:()=>{capacity=Math.min(8,capacity+1)}},
+  {title:'⚙️ Motor yükseltmesi',desc:`Sürüş hızını artırır. Seviye: ${engineLevel}/3`,price:220,owned:engineLevel>=3,action:()=>{engineLevel=Math.min(3,engineLevel+1)}}
+ ];
+ items.forEach(it=>{const row=document.createElement('div');row.className='shoprow';const d=document.createElement('div');d.className='desc';d.innerHTML=`<strong>${it.title}</strong>${it.desc}<br><b>${it.price} ₺</b>`;const b=document.createElement('button');b.textContent=it.owned?'ALINDI':'SATIN AL';b.disabled=it.owned||money<it.price;b.addEventListener('click',()=>{if(money<it.price||it.owned)return;money-=it.price;it.action();updateHud();makeShop();$('garageMoney').textContent=money;$('message').textContent='🎉 Garaj yükseltmesi satın alındı!';});row.append(d,b);root.append(row);});
+}
+function showGarage(){running=false;$('mainPanel').classList.add('hidden');$('endPanel').classList.add('hidden');$('garagePanel').classList.remove('hidden');$('overlay').style.display='flex';makeShop();$('garageMoney').textContent=money;}
+function closeGarage(){ $('overlay').style.display='none';$('garagePanel').classList.add('hidden');if(!running){running=true;last=performance.now();requestAnimationFrame(frame);} }
+function endGame(){running=false;$('overlay').style.display='flex';$('mainPanel').classList.add('hidden');$('garagePanel').classList.add('hidden');$('endPanel').classList.remove('hidden');$('endStats').innerHTML=`Kazandığın para: <b>${money} ₺</b><br>Taşıdığın yolcu: <b>${served}</b><br>Dolmuşun: <b>${vans[vanLevel].name}</b>`;}
+function start(){money=0;passengers=0;health=3;served=0;lane=1;playerX=laneX(1);traffic.length=0;stops.length=0;riders.length=0;roadOffset=0;spawnTimer=0;stopCooldown=0;invincible=0;tripTime=0;capacity=Math.max(4,vanLevel===0?4:vanLevel===1?5:6);updateHud();$('message').textContent='Duraktan yolcu al, sonra ücret kazan!';$('overlay').style.display='none';$('mainPanel').classList.remove('hidden');$('garagePanel').classList.add('hidden');$('endPanel').classList.add('hidden');running=true;last=performance.now();requestAnimationFrame(frame);}
+function changeLane(d){if(!running)return;lane=Math.max(0,Math.min(2,lane+d));}
+$('start').addEventListener('click',start);$('restart').addEventListener('click',start);$('left').addEventListener('pointerdown',e=>{e.preventDefault();changeLane(-1)});$('right').addEventListener('pointerdown',e=>{e.preventDefault();changeLane(1)});$('stop').addEventListener('pointerdown',e=>{e.preventDefault();takeStop()});
+$('garageBtn').addEventListener('click',showGarage);$('openGarage').addEventListener('click',showGarage);$('backGarage').addEventListener('click',closeGarage);$('endGarage').addEventListener('click',showGarage);
+document.addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='a')changeLane(-1);if(e.key==='ArrowRight'||e.key==='d')changeLane(1);if(e.key===' '||e.key==='Enter')takeStop();});
+updateHud();render();
+})();
+</script>
+</body>
+</html>
