@@ -29,6 +29,11 @@ button:active{transform:translateY(2px);box-shadow:0 2px 0 #091710}
 .small{font-size:11px;opacity:.75}
 .hidden{display:none!important}
 </style>
+
+  <meta name="theme-color" content="#0b6e4f">
+  <meta name="description" content="Dolmuşçu: Yolcuları al, ücretini kazan, dolmuşunu geliştir!">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -143,5 +148,15 @@ document.addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='a')chan
 updateHud();render();
 })();
 </script>
-</body>
+</bo
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("./sw.js").catch(function (err) {
+      console.log("Service worker registration failed:", err);
+    });
+  });
+}
+</script>
+dy>
 </html>
